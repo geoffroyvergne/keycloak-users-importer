@@ -6,7 +6,7 @@ import argparse
 from types import SimpleNamespace
 import configparser
 
-def setConfig(configFile):
+def setConfig(configFile, clientRole, realmRole):
 	config = configparser.ConfigParser()
 	config.read(configFile)
 
@@ -22,11 +22,16 @@ def setConfig(configFile):
 			"lastName": config['CSV']['lastName'],
 			"userName": config['CSV']['userName'],
 			"email": config['CSV']['email'],
-			"clientRole": config['CSV']['clientRole'],
-			"realmRole": config['CSV']['realmRole'],
+			#"clientRole": config['CSV']['clientRole'],
+			#"realmRole": config['CSV']['realmRole'],
 			"password": config['CSV']['password'],
 		}
 	}
+
+	if clientRole:
+		configMap["csvMap"]["clientRole"] = config['CSV']['clientRole']
+	if realmRole:
+		configMap["csvMap"]["realmRole"] = config['CSV']['realmRole']
 
 	configMapping = SimpleNamespace(**configMap)
 	configMapping.csvMap = SimpleNamespace(**configMap["csvMap"])
@@ -168,6 +173,8 @@ if __name__ == "__main__":
 	parser.add_argument("-c", "--config", dest="config", help="Config file", metavar="FILE")
 	parser.add_argument("--delete", help="delete user list in CSV default add", action="store_true")
 	parser.add_argument("-l", "--limit", help="limit CSV user to add", type=int)
+	parser.add_argument("--clientrole", help="import client roles in CSV", action="store_true")
+	parser.add_argument("--realmrole", help="import realm roles in CSV", action="store_true")
 
 	args = parser.parse_args()
 
@@ -179,14 +186,20 @@ if __name__ == "__main__":
 	if args.filename:
 		csvFile = args.filename
 
-	configMap = setConfig(configFile)
+	clientRole = False
+	if args.clientrole:
+		clientRole=args.clientRole
+
+	realmRole = False
+	if args.realmrole:
+		realmRole=args.realmRole
+
+	configMap = setConfig(configFile, clientRole, realmRole)
 
 	limit = 0
 	if args.limit:
 		limit = args.limit
 	
-	#exit()
-
 	with open(csvFile) as csvfile:
 		reader = csv.DictReader(csvfile)
 		currentRow=0
@@ -196,7 +209,7 @@ if __name__ == "__main__":
 				break
 
 			currentRow+=1
-			
+
 			userData = {
 				"enabled": True,
 			    "username": csv_row[configMap.csvMap.userName],
@@ -217,11 +230,11 @@ if __name__ == "__main__":
 				user = getUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, userData["username"])
 
 				if len(user) == 1:
-					if(csv_row[configMap.csvMap.clientRole]):
+					if clientRole:
 						clientRole = getClientRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, csv_row[configMap.csvMap.clientRole])
 						addClientRoleToUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, user[0]["id"], [clientRole])
 
-					if(csv_row[configMap.csvMap.realmRole]):
+					if realmRole:
 						realmRole = getRealmRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, csv_row[configMap.csvMap.realmRole])
 						addRealmRolesToUser(configMap.admimUrl,configMap.adminLogin,configMap.adminPassword,configMap.realm, user[0]["id"], [realmRole])
 
