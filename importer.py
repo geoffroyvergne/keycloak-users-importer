@@ -16,6 +16,7 @@ def setConfig(configFile, clientRole, realmRole):
 		"adminPassword": config['DEFAULT']['adminPassword'],
 		"realm": config['DEFAULT']['realm'],
 		"client": config['DEFAULT']['client'],
+		"defaultPassword": config['DEFAULT']['default_password'],
 
 		"csvMap": {
 			"firstName": config['CSV']['firstName'],
@@ -103,6 +104,7 @@ def addRealmRolesToUser(url,user,password,realm, userId, roles):
 
 	if result.status_code != 204:
   		print("addRealmRolesToUser return : " + str(result.status_code) + " " + result.text)
+  		return False
 
 	return True
 
@@ -115,6 +117,7 @@ def addClientRoleToUser(url,user,password,realm, client, userId, roles):
 
 	if result.status_code != 204:
   		print("addClientRoleToUser return : " + str(result.status_code) + " " + result.text)
+  		return False
 
 	return True
 
@@ -139,6 +142,7 @@ def deleteUser(url,user,password,realm,userId):
 
 	if result.status_code != 204:
   		print("deleteUser return : " + str(result.status_code) + " " + result.text)
+  		return False
 
 	return True
 
@@ -149,20 +153,22 @@ def addUser(url,user,password,realm,userData):
 	result = requests.post(url+"/admin/realms/" + realm + "/users", json=userData,headers=head,proxies={'http':None})
 	if result.status_code != 201:
 		print("addUser return : " + str(result.status_code) + " " + result.text)
+		return False
 
 	return True
 
-def addTempPassword(url,user,password,realm, userId, userPassword):
+def addPassword(url,user,password,realm, userId, userPassword, temporary):
 	bearer = getKcBearer(url, user, password)
 	head = prepareKcApiHeaders(bearer)
 
-	credentials = { "type": "password", "temporary": True, "value": userPassword }
+	credentials = { "type": "password", "temporary": temporary, "value": userPassword }
 
 	# PUT /admin/realms/{realm}/users/{id}/reset-password
 	result = requests.put(url+"/admin/realms/" + realm + "/users/" + userId + "/reset-password", json=credentials,headers=head,proxies={'http':None})
 
 	if result.status_code != 204:
   		print("addTempPassword return : " + str(result.status_code) + " " + result.text)
+  		return False
 
 	return True
 
@@ -226,17 +232,20 @@ if __name__ == "__main__":
 					deleteUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm,user[0]["id"])
 
 			else:
-				addUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, userData)
-				user = getUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, userData["username"])
+				if addUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, userData):
+					user = getUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, userData["username"])
 
-				if len(user) == 1:
-					if clientRole:
-						clientRole = getClientRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, csv_row[configMap.csvMap.clientRole])
-						addClientRoleToUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, user[0]["id"], [clientRole])
+					if len(user) == 1:
+						if clientRole:
+							clientRole = getClientRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, csv_row[configMap.csvMap.clientRole])
+							addClientRoleToUser(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, configMap.client, user[0]["id"], [clientRole])
 
-					if realmRole:
-						realmRole = getRealmRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, csv_row[configMap.csvMap.realmRole])
-						addRealmRolesToUser(configMap.admimUrl,configMap.adminLogin,configMap.adminPassword,configMap.realm, user[0]["id"], [realmRole])
+						if realmRole:
+							realmRole = getRealmRole(configMap.admimUrl, configMap.adminLogin, configMap.adminPassword, configMap.realm, csv_row[configMap.csvMap.realmRole])
+							addRealmRolesToUser(configMap.admimUrl,configMap.adminLogin,configMap.adminPassword,configMap.realm, user[0]["id"], [realmRole])
 
-					if(csv_row[configMap.csvMap.password]):
-						addTempPassword(configMap.admimUrl,configMap.adminLogin,configMap.adminPassword,configMap.realm, user[0]["id"], csv_row[configMap.csvMap.password])
+						password = configMap.defaultPassword
+						if(csv_row[configMap.csvMap.password]):
+							password = csv_row[configMap.csvMap.password]
+
+						addPassword(configMap.admimUrl,configMap.adminLogin,configMap.adminPassword,configMap.realm, user[0]["id"], password, True)
